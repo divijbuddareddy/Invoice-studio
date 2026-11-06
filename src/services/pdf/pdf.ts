@@ -447,7 +447,7 @@ function totalRows(c: Ctx, doc: DocumentRecord, t: Totals, showPaid: boolean): {
   if (t.roundOffMinor) rows.push({ label: 'Round off', value: `${t.roundOffMinor > 0 ? '+' : ''}${f(t.roundOffMinor)}` });
   rows.push({ label: `Total (${cur})`, value: money(c, t.grandTotalMinor, cur), grand: true });
   if (showPaid && t.paidMinor > 0) {
-    rows.push({ label: 'Amount paid', value: `-${f(t.paidMinor)}` });
+    rows.push({ label: 'Amount paid', value: f(t.paidMinor) });
     rows.push({ label: 'Balance due', value: money(c, t.balanceMinor, cur), strong: true });
   }
   return rows;

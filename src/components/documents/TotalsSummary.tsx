@@ -24,7 +24,7 @@ export default function TotalsSummary({ totals, showPaid, discountLabel }: { tot
       <Row label="Grand total" value={f(totals.grandTotalMinor)} strong />
       {showPaid && (
         <>
-          <Row label="Advance / amount paid" value={`−${f(totals.paidMinor)}`} />
+          <Row label="Advance / amount paid" value={f(totals.paidMinor)} />
           <Row label="Balance due" value={f(totals.balanceMinor)} strong />
         </>
       )}
