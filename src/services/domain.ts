@@ -161,7 +161,7 @@ export const defaultSettings = (): AppSettings => ({
   defaultTemplate: 'corporate',
   defaultTaxMode: 'intra',
   defaultTaxRate: 18,
-  branding: { primaryColor: '#1b3a87', secondaryColor: '#2f6fed', font: 'helvetica', logoAlign: 'left', showSignature: true },
+  branding: { primaryColor: '#1b3a87', secondaryColor: '#2f6fed', font: 'noto', logoAlign: 'left', showSignature: true },
   customFields: [],
   servicesSeeded: false,
   lastBackupAt: '',
