@@ -141,3 +141,14 @@ describe('allocate', () => {
     expect(allocate(7, [3, 1]).reduce((a, b) => a + b)).toBe(7);
   });
 });
+
+describe('payment terms "Paid"', () => {
+  it('treats the full amount as received, leaving no balance', () => {
+    const items = [line({ quantity: 1, rate: 1000 })];
+    const unpaid = calculateTotals(base({ items, paymentTerms: 'net15' }));
+    expect(unpaid.balanceMinor).toBe(unpaid.grandTotalMinor);
+    const paid = calculateTotals(base({ items, paymentTerms: 'paid', advancePaid: 100 }));
+    expect(paid.paidMinor).toBe(paid.grandTotalMinor);
+    expect(paid.balanceMinor).toBe(0);
+  });
+});

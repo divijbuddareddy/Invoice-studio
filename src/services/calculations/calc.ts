@@ -69,6 +69,8 @@ export interface CalcInput {
   roundOff: boolean;
   /** Additional recorded payments (major units). */
   paymentsTotal?: number;
+  /** 'paid' marks the document as fully settled: no balance remains due. */
+  paymentTerms?: string;
 }
 
 const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
@@ -187,8 +189,10 @@ export function calculateTotals(input: CalcInput): Totals {
     roundOffMinor = roundHalf(beforeRound / unit) * unit - beforeRound;
   }
   const grandTotalMinor = beforeRound + roundOffMinor;
-  const paidMinor =
+  const recordedPaidMinor =
     Math.max(0, toMinor(safe(input.advancePaid), currency)) + Math.max(0, toMinor(safe(input.paymentsTotal ?? 0), currency));
+  // Payment terms "Paid": the full amount is treated as received, so nothing is due.
+  const paidMinor = input.paymentTerms === 'paid' ? Math.max(recordedPaidMinor, grandTotalMinor) : recordedPaidMinor;
 
   return {
     currency,

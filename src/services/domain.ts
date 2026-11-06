@@ -73,6 +73,7 @@ export const TAX_MODE_LABEL: Record<TaxMode, string> = {
 export const TAX_PRESETS = [0, 5, 12, 18, 28];
 
 export const PAYMENT_TERMS: { key: PaymentTermsKey; label: string; days: number }[] = [
+  { key: 'paid', label: 'Paid', days: 0 },
   { key: 'receipt', label: 'Due on receipt', days: 0 },
   { key: 'net7', label: 'Net 7', days: 7 },
   { key: 'net15', label: 'Net 15', days: 15 },

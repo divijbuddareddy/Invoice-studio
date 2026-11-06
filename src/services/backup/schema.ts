@@ -20,7 +20,7 @@ const image = z
 const address = z.object({ line1: str(300), line2: str(300), city: str(100), state: str(100), postalCode: str(20), country: str(100) });
 const bank = z.object({ accountHolder: str(200), bankName: str(200), accountNumber: str(50), ifsc: str(20), branch: str(200), swift: str(20) });
 
-const termsKey = z.enum(['receipt', 'net7', 'net15', 'net30', 'net45', 'net60', 'custom']);
+const termsKey = z.enum(['paid', 'receipt', 'net7', 'net15', 'net30', 'net45', 'net60', 'custom']);
 const unit = z.enum(['fixed', 'hour', 'day', 'week', 'month', 'year', 'seat', 'milestone', 'custom']);
 const discountType = z.enum(['percent', 'fixed']);
 const docType = z.enum(['invoice', 'quotation', 'proforma', 'credit-note', 'debit-note', 'purchase-order']);
