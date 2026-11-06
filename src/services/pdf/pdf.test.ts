@@ -3,7 +3,9 @@ import { buildDocumentPdf, buildReceiptPdf } from './pdf';
 import { DOC_TYPES, type DocumentRecord, type Payment, type TemplateId } from '../../types';
 import { defaultSettings, emptyCompany, emptyLine, newDocument } from '../domain';
 
+// These tests cover the built-in (WinAnsi) font path; Noto Sans is covered in unicode.test.ts.
 const settings = defaultSettings();
+settings.branding.font = 'helvetica';
 const company = {
   ...emptyCompany(),
   legalName: 'Very Long Company Name Software Solutions and Artificial Intelligence Consulting Private Limited',
