@@ -148,7 +148,7 @@ export interface Charge {
   taxRate: number;
 }
 
-export type PaymentTermsKey = 'receipt' | 'net7' | 'net15' | 'net30' | 'net45' | 'net60' | 'custom';
+export type PaymentTermsKey = 'paid' | 'receipt' | 'net7' | 'net15' | 'net30' | 'net45' | 'net60' | 'custom';
 
 export interface ClientSnapshot {
   clientId?: string;
