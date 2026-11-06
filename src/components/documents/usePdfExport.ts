@@ -6,10 +6,10 @@ import { loadUnicodeFont } from '../../services/pdf/fonts';
 import { getSettings } from '../../services/storage/db';
 import { useConfirm, useToast } from '../ui';
 
-/** Settings branding, with the Unicode font loaded first when it's selected. */
+/** Settings branding, with the Unicode font loaded first (needed for Noto Sans and for the ₹ symbol). */
 export async function brandingForPdf(): Promise<Branding> {
   const { branding } = await getSettings();
-  if (branding.font === 'noto') await loadUnicodeFont();
+  await loadUnicodeFont();
   return branding;
 }
 

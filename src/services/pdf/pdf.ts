@@ -90,12 +90,15 @@ function makeTheme(template: TemplateId, b: Branding, font: string): Theme {
   }
 }
 
-/** Create the drawing context, registering the Unicode font when selected and available. */
-function makeCtx(pdf: jsPDF, template: TemplateId, branding: Branding): Ctx {
-  const wantsUnicode = branding.font === 'noto';
-  const unicode = wantsUnicode && registerUnicodeFont(pdf);
-  const fontName = unicode ? UNICODE_FONT : wantsUnicode ? 'helvetica' : branding.font;
-  const warnings = wantsUnicode && !unicode ? ['The Unicode font is not loaded yet, so Helvetica was used for this PDF.'] : [];
+/**
+ * Create the drawing context, registering the Unicode font when available and either selected
+ * or needed for the ₹ symbol (INR documents always print ₹, whatever font is chosen).
+ */
+function makeCtx(pdf: jsPDF, template: TemplateId, branding: Branding, currency: string): Ctx {
+  const selected = branding.font === 'noto';
+  const unicode = (selected || currency === 'INR') && registerUnicodeFont(pdf);
+  const fontName = unicode ? UNICODE_FONT : selected ? 'helvetica' : branding.font;
+  const warnings = selected && !unicode ? ['The Unicode font is not loaded yet, so Helvetica was used for this PDF.'] : [];
   return { pdf, y: 15, theme: makeTheme(template, branding, fontName), branding, warnings, unicode };
 }
 
@@ -730,7 +733,7 @@ export function buildDocumentPdf(doc: DocumentRecord, payments: Payment[], brand
   const title = documentTitle(doc);
   const co = doc.companySnapshot;
   const pdf = newPdf(doc, title, co);
-  const c = makeCtx(pdf, template ?? doc.template, branding);
+  const c = makeCtx(pdf, template ?? doc.template, branding, doc.currency);
   const totals = calculateTotals({ ...doc, paymentsTotal: sumPayments(paymentsFor(doc.id, payments)) });
 
   drawHeader(c, co, title, documentMeta(doc));
@@ -747,7 +750,7 @@ export function buildReceiptPdf(payment: Payment, invoice: DocumentRecord, allPa
   const title = 'PAYMENT RECEIPT';
   const co = invoice.companySnapshot;
   const pdf = newPdf({ number: payment.receiptNumber }, title, co);
-  const c = makeCtx(pdf, invoice.template, branding);
+  const c = makeCtx(pdf, invoice.template, branding, payment.currency);
   const cur = payment.currency;
 
   // Payments up to and including this one determine the balance shown on this receipt.

@@ -48,4 +48,17 @@ describe('Unicode font & custom fields', () => {
     const raw = r.pdf.output();
     expect(raw).toContain('NotoSans');
   });
+
+  it('uses the Unicode font for INR documents (₹ symbol) even when a built-in font is selected', () => {
+    expect(unicodeFontReady()).toBe(true);
+    const inr = newDocument('invoice', settings, emptyCompany());
+    inr.currency = 'INR';
+    inr.items = [emptyLine(18, { description: 'Service', rate: 1000 })];
+    const r = buildDocumentPdf(inr, [], { ...settings.branding, font: 'helvetica' });
+    expect(r.warnings).toEqual([]);
+    expect(r.pdf.output()).toContain('NotoSans');
+
+    const usd = { ...inr, currency: 'USD' };
+    expect(buildDocumentPdf(usd, [], { ...settings.branding, font: 'helvetica' }).pdf.output()).not.toContain('NotoSans');
+  });
 });

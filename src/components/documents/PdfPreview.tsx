@@ -8,15 +8,14 @@ import type { Branding } from '../../types';
  * Live preview that renders the *actual* generated PDF, so what you see is exactly what downloads.
  * Rebuilds are debounced while typing.
  */
-export default function PdfPreview({ build, deps, branding }: { build: () => PdfResult; deps: unknown[]; branding?: Branding }) {
+export default function PdfPreview({ build, deps }: { build: () => PdfResult; deps: unknown[]; branding?: Branding }) {
   const [url, setUrl] = useState('');
   const [fontTick, setFontTick] = useState(0);
-  const wantsUnicode = branding?.font === 'noto';
 
-  // Load the bundled Unicode font on demand, then rebuild the preview.
+  // Load the bundled Unicode font (Noto Sans and the ₹ symbol), then rebuild the preview.
   useEffect(() => {
-    if (wantsUnicode && !unicodeFontReady()) loadUnicodeFont().then((ok) => ok && setFontTick((t) => t + 1));
-  }, [wantsUnicode]);
+    if (!unicodeFontReady()) loadUnicodeFont().then((ok) => ok && setFontTick((t) => t + 1));
+  }, []);
   const [error, setError] = useState('');
   const [warnings, setWarnings] = useState<string[]>([]);
   const urlRef = useRef('');

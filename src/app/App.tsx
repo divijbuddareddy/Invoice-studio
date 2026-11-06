@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { RouterProvider } from 'react-router-dom';
 import { router } from './routes';
-import { getSettings, initStorage } from '../services/storage/db';
+import { initStorage } from '../services/storage/db';
 import { loadUnicodeFont } from '../services/pdf/fonts';
 import { ConfirmProvider, ToastProvider } from '../components/ui';
 
@@ -12,8 +12,8 @@ export default function App() {
   useEffect(() => {
     initStorage()
       .then(async () => {
-        // Preload the bundled Unicode PDF font if selected (non-blocking failure: PDFs fall back to Helvetica).
-        if ((await getSettings()).branding.font === 'noto') await loadUnicodeFont();
+        // Preload the bundled Unicode PDF font (Noto Sans and the ₹ symbol); on failure PDFs fall back to built-in fonts.
+        await loadUnicodeFont();
         setState('ready');
       })
       .catch((e) => {
