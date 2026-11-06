@@ -15,7 +15,7 @@ import { backupCounts, parseBackup, type BackupFile } from '../../services/backu
 import { buildDocumentPdf, pdfBlobUrl } from '../../services/pdf/pdf';
 import { processImageUpload } from '../../utils/image';
 import { CURRENCIES } from '../../utils/money';
-import { checkOptional, formatDate, isEmail, isGstin, isHexColor, isIfsc, isPan, isPhone, isUpi, isUrl } from '../../utils/misc';
+import { checkOptional, formatDate, isEmail, isGstin, isHexColor, isPan, isPhone, isUpi, isUrl } from '../../utils/misc';
 import { Checkbox, Loading, Modal, NumberInput, PageHeader, Section, Select, TextArea, TextInput, useAction, useConfirm, useToast } from '../ui';
 import AddressFields from '../forms/AddressFields';
 
@@ -105,11 +105,10 @@ function CompanyTab() {
     website: checkOptional(c.website, isUrl, 'Enter a website like www.company.com'),
     gstin: checkOptional(c.gstin, isGstin, '15 characters, e.g. 27AAPFU0939F1ZV. Structure check only — not verified with the GST portal.'),
     pan: checkOptional(c.pan, isPan, 'PAN should look like AAAAA9999A'),
-    ifsc: checkOptional(c.bank.ifsc, isIfsc, 'IFSC should look like HDFC0001234'),
     upi: checkOptional(c.upiId, isUpi, 'UPI ID should look like name@bank'),
   };
   const hasErrors = Object.values(errors).some(Boolean);
-  const save = () => run(() => saveCompany({ ...c, legalName: c.legalName.trim(), gstin: c.gstin.toUpperCase(), pan: c.pan.toUpperCase(), bank: { ...c.bank, ifsc: c.bank.ifsc.toUpperCase() } }), 'Company profile saved');
+  const save = () => run(() => saveCompany({ ...c, legalName: c.legalName.trim(), gstin: c.gstin.toUpperCase(), pan: c.pan.toUpperCase() }), 'Company profile saved');
 
   return (
     <div className="space-y-4 pb-20">
@@ -139,7 +138,7 @@ function CompanyTab() {
           <TextInput label="Account holder" value={c.bank.accountHolder} onChange={(e) => setBank('accountHolder', e.target.value)} maxLength={200} />
           <TextInput label="Bank name" value={c.bank.bankName} onChange={(e) => setBank('bankName', e.target.value)} maxLength={200} />
           <TextInput label="Account number" value={c.bank.accountNumber} onChange={(e) => setBank('accountNumber', e.target.value)} maxLength={50} />
-          <TextInput label="IFSC" value={c.bank.ifsc} onChange={(e) => setBank('ifsc', e.target.value.toUpperCase())} error={errors.ifsc} maxLength={11} />
+          <TextInput label="IFSC" value={c.bank.ifsc} onChange={(e) => setBank('ifsc', e.target.value)} maxLength={20} />
           <TextInput label="Branch" value={c.bank.branch} onChange={(e) => setBank('branch', e.target.value)} maxLength={200} />
           <TextInput label="SWIFT / BIC (optional)" value={c.bank.swift} onChange={(e) => setBank('swift', e.target.value.toUpperCase())} maxLength={11} />
           <TextInput label="UPI ID" value={c.upiId} onChange={(e) => set('upiId', e.target.value.trim())} error={errors.upi} maxLength={200} />
