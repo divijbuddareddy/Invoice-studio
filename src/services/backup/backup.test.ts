@@ -49,4 +49,29 @@ describe('backup validation', () => {
     (b.data.company as unknown as { logo: unknown }).logo = { dataUrl: 'data:image/svg+xml,<svg onload=alert(1)>', width: 1, height: 1 };
     expect(parseBackup(JSON.stringify(b)).ok).toBe(false);
   });
+
+  it('imports legacy backups missing personalBank and bankAccount and preserves new fields', () => {
+    const legacy = validBackup();
+    delete (legacy.data.company as unknown as Record<string, unknown>).personalBank;
+    delete (legacy.data.company as unknown as Record<string, unknown>).personalUpiId;
+    delete (legacy.data.documents[0] as unknown as Record<string, unknown>).bankAccount;
+    const legacyRes = parseBackup(JSON.stringify(legacy));
+    expect(legacyRes.ok).toBe(true);
+    if (legacyRes.ok) {
+      expect(legacyRes.backup.data.company?.personalBank.bankName).toBe('');
+      expect(legacyRes.backup.data.company?.personalUpiId).toBe('');
+    }
+
+    const updated = validBackup();
+    updated.data.company.personalBank.bankName = 'ICICI';
+    updated.data.company.personalUpiId = 'me@icici';
+    updated.data.documents[0].bankAccount = 'personal';
+    const updatedRes = parseBackup(JSON.stringify(updated));
+    expect(updatedRes.ok).toBe(true);
+    if (updatedRes.ok) {
+      expect(updatedRes.backup.data.company?.personalBank.bankName).toBe('ICICI');
+      expect(updatedRes.backup.data.company?.personalUpiId).toBe('me@icici');
+      expect(updatedRes.backup.data.documents[0].bankAccount).toBe('personal');
+    }
+  });
 });

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Building2, Palette, Hash, DatabaseBackup, Upload, Trash2, Download, Eye, ImagePlus, ShieldCheck, ListPlus, Plus } from 'lucide-react';
-import type { AppSettings, CompanyProfile, CustomFieldDef, NumberingKey, PdfFont, LogoAlign, StoredImage, TaxMode, TemplateId, PaymentTermsKey } from '../../types';
+import type { AppSettings, BankDetails, CompanyProfile, CustomFieldDef, NumberingKey, PdfFont, LogoAlign, StoredImage, TaxMode, TemplateId, PaymentTermsKey } from '../../types';
 import { DOC_TYPES } from '../../types';
 import { loadUnicodeFont } from '../../services/pdf/fonts';
 import { getThemePref, setThemePref, type ThemePref } from '../../services/theme';
@@ -87,6 +87,34 @@ function ImageField({ label, value, onChange, hint }: { label: string; value?: S
   );
 }
 
+function BankAccountFields({ title, subtitle, bank, onBankChange, upiId, onUpiChange, upiError }: {
+  title: string;
+  subtitle: string;
+  bank: BankDetails;
+  onBankChange: (k: keyof BankDetails, v: string) => void;
+  upiId: string;
+  onUpiChange: (v: string) => void;
+  upiError?: string;
+}) {
+  return (
+    <div className="rounded-md border border-slate-200 p-3">
+      <div className="mb-3">
+        <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+        <p className="text-xs text-slate-500">{subtitle}</p>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <TextInput label="Account holder" value={bank.accountHolder} onChange={(e) => onBankChange('accountHolder', e.target.value)} maxLength={200} />
+        <TextInput label="Bank name" value={bank.bankName} onChange={(e) => onBankChange('bankName', e.target.value)} maxLength={200} />
+        <TextInput label="Account number" value={bank.accountNumber} onChange={(e) => onBankChange('accountNumber', e.target.value)} maxLength={50} />
+        <TextInput label="IFSC" value={bank.ifsc} onChange={(e) => onBankChange('ifsc', e.target.value)} maxLength={20} />
+        <TextInput label="Branch" value={bank.branch} onChange={(e) => onBankChange('branch', e.target.value)} maxLength={200} />
+        <TextInput label="SWIFT / BIC (optional)" value={bank.swift} onChange={(e) => onBankChange('swift', e.target.value.toUpperCase())} maxLength={11} />
+        <TextInput label="UPI ID" value={upiId} onChange={(e) => onUpiChange(e.target.value.trim())} error={upiError} maxLength={200} />
+      </div>
+    </div>
+  );
+}
+
 function CompanyTab() {
   const stored = useCompany();
   const [c, setC] = useState<CompanyProfile | null>(null);
@@ -98,6 +126,7 @@ function CompanyTab() {
   const dirty = JSON.stringify(c) !== JSON.stringify(stored);
   const set = <K extends keyof CompanyProfile>(k: K, v: CompanyProfile[K]) => setC({ ...c, [k]: v });
   const setBank = (k: keyof CompanyProfile['bank'], v: string) => setC({ ...c, bank: { ...c.bank, [k]: v } });
+  const setPersonalBank = (k: keyof CompanyProfile['personalBank'], v: string) => setC({ ...c, personalBank: { ...c.personalBank, [k]: v } });
   const errors = {
     legalName: !c.legalName.trim() ? 'Enter your company or legal name.' : '',
     email: checkOptional(c.email, isEmail, 'Enter a valid email like billing@company.com'),
@@ -106,6 +135,7 @@ function CompanyTab() {
     gstin: checkOptional(c.gstin, isGstin, '15 characters, e.g. 27AAPFU0939F1ZV. Structure check only — not verified with the GST portal.'),
     pan: checkOptional(c.pan, isPan, 'PAN should look like AAAAA9999A'),
     upi: checkOptional(c.upiId, isUpi, 'UPI ID should look like name@bank'),
+    personalUpi: checkOptional(c.personalUpiId, isUpi, 'UPI ID should look like name@bank'),
   };
   const hasErrors = Object.values(errors).some(Boolean);
   const save = () => run(() => saveCompany({ ...c, legalName: c.legalName.trim(), gstin: c.gstin.toUpperCase(), pan: c.pan.toUpperCase() }), 'Company profile saved');
@@ -134,15 +164,26 @@ function CompanyTab() {
         </div>
       </Section>
       <Section title="Bank & payment details">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <TextInput label="Account holder" value={c.bank.accountHolder} onChange={(e) => setBank('accountHolder', e.target.value)} maxLength={200} />
-          <TextInput label="Bank name" value={c.bank.bankName} onChange={(e) => setBank('bankName', e.target.value)} maxLength={200} />
-          <TextInput label="Account number" value={c.bank.accountNumber} onChange={(e) => setBank('accountNumber', e.target.value)} maxLength={50} />
-          <TextInput label="IFSC" value={c.bank.ifsc} onChange={(e) => setBank('ifsc', e.target.value)} maxLength={20} />
-          <TextInput label="Branch" value={c.bank.branch} onChange={(e) => setBank('branch', e.target.value)} maxLength={200} />
-          <TextInput label="SWIFT / BIC (optional)" value={c.bank.swift} onChange={(e) => setBank('swift', e.target.value.toUpperCase())} maxLength={11} />
-          <TextInput label="UPI ID" value={c.upiId} onChange={(e) => set('upiId', e.target.value.trim())} error={errors.upi} maxLength={200} />
-          <div className="flex items-end sm:col-span-2"><Checkbox label="Print UPI QR code on INR invoices" hint="Generated locally; encodes your UPI ID and the balance due." checked={c.showUpiQr} onChange={(v) => set('showUpiQr', v)} /></div>
+        <div className="space-y-4">
+          <BankAccountFields
+            title="Company Bank Account"
+            subtitle="Selected by default for GST invoices."
+            bank={c.bank}
+            onBankChange={setBank}
+            upiId={c.upiId}
+            onUpiChange={(v) => set('upiId', v)}
+            upiError={errors.upi}
+          />
+          <BankAccountFields
+            title="Personal Bank Account"
+            subtitle="Selected by default for non-GST invoices."
+            bank={c.personalBank}
+            onBankChange={setPersonalBank}
+            upiId={c.personalUpiId}
+            onUpiChange={(v) => set('personalUpiId', v)}
+            upiError={errors.personalUpi}
+          />
+          <Checkbox label="Print UPI QR code on INR invoices" hint="Generated locally; encodes the selected account's UPI ID and the balance due." checked={c.showUpiQr} onChange={(v) => set('showUpiQr', v)} />
         </div>
       </Section>
       <Section title="Signatory">

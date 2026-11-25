@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useBlocker, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Copy, Download, Eye, FileCheck2, Printer, RotateCcw, Save, AlertTriangle, Info } from 'lucide-react';
-import type { DocType, DocumentRecord, DocStatus, PaymentTermsKey, TaxMode, TemplateId } from '../../types';
+import type { BankAccountType, DocType, DocumentRecord, DocStatus, InvoiceGstType, PaymentTermsKey, TaxMode, TemplateId } from '../../types';
 import {
-  DOC_META, INDIAN_STATES, PAYMENT_TERMS, TAX_DISCLAIMER, TAX_MODE_LABEL, TEMPLATES, suggestTaxMode, termsDays,
+  BANK_ACCOUNT_LABEL, DOC_META, INDIAN_STATES, INVOICE_GST_TYPE_LABEL, PAYMENT_TERMS, TAX_DISCLAIMER, TAX_MODE_LABEL, TEMPLATES,
+  defaultBankAccountForTaxMode, hasBankDetails, invoiceGstType, isGstTaxMode, resolveBankDetails, suggestTaxMode, termsDays,
 } from '../../services/domain';
 import { calculateTotals } from '../../services/calculations/calc';
 import { buildDocumentPdf } from '../../services/pdf/pdf';
@@ -100,9 +101,48 @@ export default function DocumentEditor({ type, id }: { type: DocType; id?: strin
   const isFinal = doc.status !== 'draft';
   const invoices = (allDocs ?? []).filter((d) => d.type === 'invoice' && d.status !== 'draft' && !d.archived);
   const suggestion = suggestTaxMode(doc.supplierState, doc.placeOfSupply);
-  const gst = doc.taxMode === 'intra' || doc.taxMode === 'inter';
+  const gst = isGstTaxMode(doc.taxMode);
+  const gstType = invoiceGstType(doc.taxMode);
+  const showBank = type === 'invoice' || type === 'proforma' || type === 'debit-note';
+  const bankAccount = doc.bankAccount ?? defaultBankAccountForTaxMode(doc.taxMode);
+  const resolvedBank = resolveBankDetails({ companySnapshot: doc.companySnapshot, bankAccount });
+  const bankConfigured = hasBankDetails(resolvedBank.bank, resolvedBank.upiId);
   const hasDue = !!meta.dueLabel;
   const hasTerms = type === 'invoice' || type === 'proforma' || type === 'debit-note';
+
+  const setGstType = (next: InvoiceGstType) => {
+    const nextTaxMode: TaxMode =
+      next === 'gst'
+        ? (isGstTaxMode(doc.taxMode)
+            ? doc.taxMode
+            : suggestTaxMode(doc.supplierState, doc.placeOfSupply) ?? (isGstTaxMode(settings.defaultTaxMode) ? settings.defaultTaxMode : 'intra'))
+        : 'none';
+    patch({
+      taxMode: nextTaxMode,
+      bankAccount: defaultBankAccountForTaxMode(nextTaxMode),
+    });
+  };
+
+  const setTaxMode = (nextMode: TaxMode) => {
+    const wasGst = isGstTaxMode(doc.taxMode);
+    const willBeGst = isGstTaxMode(nextMode);
+    patch({
+      taxMode: nextMode,
+      ...(wasGst !== willBeGst ? { bankAccount: defaultBankAccountForTaxMode(nextMode) } : {}),
+    });
+  };
+
+  const bankOptionLabel = (kind: BankAccountType) => {
+    const b = kind === 'company' ? doc.companySnapshot.bank : doc.companySnapshot.personalBank;
+    const summary = [b?.bankName?.trim(), b?.accountNumber?.trim() ? `••••${b.accountNumber.trim().slice(-4)}` : ''].filter(Boolean).join(' · ');
+    return summary ? `${BANK_ACCOUNT_LABEL[kind]} (${summary})` : BANK_ACCOUNT_LABEL[kind];
+  };
+
+  const bankHint = bankConfigured
+    ? bankAccount === defaultBankAccountForTaxMode(doc.taxMode)
+      ? `Default for ${INVOICE_GST_TYPE_LABEL[gstType].toLowerCase()}s — you can still switch manually.`
+      : 'Manually selected for this document.'
+    : 'No details saved for this bank account yet — configure them in Company Settings.';
 
   const validate = async (finalising: boolean): Promise<boolean> => {
     const e: Record<string, string> = {};
@@ -223,6 +263,27 @@ export default function DocumentEditor({ type, id }: { type: DocType; id?: strin
                 <NumberInput label="Custom terms (days)" value={doc.customTermsDays} step="1" onChange={(n) => setTerms('custom', Math.floor(n))} />
               )}
               {hasDue && <TextInput label={meta.dueLabel} type="date" value={doc.dueDate} onChange={(e) => patch({ dueDate: e.target.value })} error={errors.dueDate} />}
+              <Select
+                label={type === 'invoice' || type === 'proforma' ? 'Invoice type' : 'GST applicability'}
+                value={gstType}
+                onChange={(e) => setGstType(e.target.value as InvoiceGstType)}
+                options={[
+                  { value: 'gst', label: INVOICE_GST_TYPE_LABEL.gst },
+                  { value: 'non-gst', label: INVOICE_GST_TYPE_LABEL['non-gst'] },
+                ]}
+              />
+              {showBank && (
+                <Select
+                  label="Bank account"
+                  value={bankAccount}
+                  onChange={(e) => patch({ bankAccount: e.target.value as BankAccountType })}
+                  options={[
+                    { value: 'company', label: bankOptionLabel('company') },
+                    { value: 'personal', label: bankOptionLabel('personal') },
+                  ]}
+                  hint={bankHint}
+                />
+              )}
               <Select label="Currency" value={doc.currency} onChange={(e) => patch({ currency: e.target.value })} options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.code} — ${c.name}` }))}
                 hint={doc.currency !== 'INR' ? 'Amounts are entered in this currency. No live conversion is performed.' : undefined} />
               <Select label="PDF template" value={doc.template} onChange={(e) => patch({ template: e.target.value as TemplateId })} options={TEMPLATES.map((t) => ({ value: t.id, label: t.name }))} />
@@ -244,7 +305,7 @@ export default function DocumentEditor({ type, id }: { type: DocType; id?: strin
                   error={errors.reference}
                   onChange={(e) => {
                     const inv = invoices.find((i) => i.id === e.target.value);
-                    if (inv) patch({ referenceId: inv.id, referenceNumber: inv.number, client: inv.client, currency: inv.currency, taxMode: inv.taxMode, taxLabel: inv.taxLabel, placeOfSupply: inv.placeOfSupply, supplierState: inv.supplierState });
+                    if (inv) patch({ referenceId: inv.id, referenceNumber: inv.number, client: inv.client, currency: inv.currency, taxMode: inv.taxMode, taxLabel: inv.taxLabel, placeOfSupply: inv.placeOfSupply, supplierState: inv.supplierState, bankAccount: inv.bankAccount ?? defaultBankAccountForTaxMode(inv.taxMode) });
                     else patch({ referenceId: '', referenceNumber: '' });
                   }}
                   options={[{ value: '', label: '— Select a saved invoice —' }, ...invoices.map((i) => ({ value: i.id, label: `${i.number} · ${i.client.name}` }))]}
@@ -277,7 +338,7 @@ export default function DocumentEditor({ type, id }: { type: DocType; id?: strin
 
           <Section title="Tax">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Select wrapClass="sm:col-span-2" label="Tax presentation" value={doc.taxMode} onChange={(e) => patch({ taxMode: e.target.value as TaxMode })}
+              <Select wrapClass="sm:col-span-2" label="Tax presentation" value={doc.taxMode} onChange={(e) => setTaxMode(e.target.value as TaxMode)}
                 options={Object.entries(TAX_MODE_LABEL).map(([v, l]) => ({ value: v, label: l }))} />
               {doc.taxMode === 'other' && <TextInput label="Tax name" value={doc.taxLabel} onChange={(e) => patch({ taxLabel: e.target.value })} maxLength={30} placeholder="VAT, Sales tax…" />}
               {(gst || doc.currency === 'INR') && (
@@ -290,10 +351,10 @@ export default function DocumentEditor({ type, id }: { type: DocType; id?: strin
               )}
               {gst && <Checkbox label="Reverse charge applies" checked={doc.reverseCharge} onChange={(v) => patch({ reverseCharge: v })} />}
             </div>
-            {suggestion && suggestion !== doc.taxMode && (gst || doc.taxMode === 'none') && (
+            {suggestion && suggestion !== doc.taxMode && gst && (
               <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
                 Supplier state and place of supply {suggestion === 'intra' ? 'match' : 'differ'}, which usually indicates {TAX_MODE_LABEL[suggestion]}.
-                <button type="button" className="btn-secondary btn-sm" onClick={() => patch({ taxMode: suggestion })}>Use {suggestion === 'intra' ? 'CGST + SGST' : 'IGST'}</button>
+                <button type="button" className="btn-secondary btn-sm" onClick={() => setTaxMode(suggestion)}>Use {suggestion === 'intra' ? 'CGST + SGST' : 'IGST'}</button>
               </div>
             )}
             <p className="mt-3 text-xs text-slate-500">{TAX_DISCLAIMER}</p>

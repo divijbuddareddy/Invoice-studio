@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { currencyDigits, formatMoney, formatMoneyCode, parseAmount, toMinor } from './money';
 import { amountInWords } from './words';
 import { addMonths, isGstin, isIfsc, isPan, pdfFileName } from './misc';
-import { formatNumbering, documentTitle, effectiveStatus, newDocument, defaultSettings, emptyCompany, suggestTaxMode } from '../services/domain';
+import {
+  formatNumbering, documentTitle, effectiveStatus, newDocument, defaultSettings, emptyCompany, suggestTaxMode,
+  defaultBankAccountForTaxMode, invoiceGstType, isGstTaxMode, resolveBankDetails,
+} from '../services/domain';
 import { pdfSafe } from '../services/pdf/pdf';
 
 describe('money', () => {
@@ -86,5 +89,35 @@ describe('document titles & status', () => {
     expect(effectiveStatus(d, 1000, 0, '2026-02-01')).toBe('overdue');
     expect(effectiveStatus({ ...d, statusOverride: 'cancelled' }, 1000, 0)).toBe('cancelled');
     expect(effectiveStatus({ ...d, status: 'draft' }, 1000, 0)).toBe('draft');
+  });
+
+  it('defaults bank account by GST vs Non-GST mode and resolves selected bank details', () => {
+    expect(isGstTaxMode('intra')).toBe(true);
+    expect(isGstTaxMode('inter')).toBe(true);
+    expect(isGstTaxMode('none')).toBe(false);
+    expect(isGstTaxMode('other')).toBe(false);
+    expect(invoiceGstType('intra')).toBe('gst');
+    expect(invoiceGstType('none')).toBe('non-gst');
+    expect(defaultBankAccountForTaxMode('intra')).toBe('company');
+    expect(defaultBankAccountForTaxMode('inter')).toBe('company');
+    expect(defaultBankAccountForTaxMode('none')).toBe('personal');
+    expect(defaultBankAccountForTaxMode('other')).toBe('personal');
+
+    const coProfile = {
+      ...emptyCompany(),
+      bank: { accountHolder: 'Acme Pvt Ltd', bankName: 'HDFC', accountNumber: '1111', ifsc: 'HDFC0001111', branch: 'Pune', swift: '' },
+      upiId: 'acme@hdfc',
+      personalBank: { accountHolder: 'Divij Personal', bankName: 'ICICI', accountNumber: '2222', ifsc: 'ICIC0002222', branch: 'Hyd', swift: '' },
+      personalUpiId: 'divij@icici',
+    };
+    const gstDoc = newDocument('invoice', { ...s, defaultTaxMode: 'intra' }, coProfile);
+    expect(gstDoc.bankAccount).toBe('company');
+    expect(resolveBankDetails(gstDoc)).toEqual({ accountType: 'company', bank: coProfile.bank, upiId: 'acme@hdfc' });
+
+    const nonGstDoc = newDocument('invoice', { ...s, defaultTaxMode: 'none' }, coProfile);
+    expect(nonGstDoc.bankAccount).toBe('personal');
+    expect(resolveBankDetails(nonGstDoc)).toEqual({ accountType: 'personal', bank: coProfile.personalBank, upiId: 'divij@icici' });
+
+    expect(resolveBankDetails({ ...gstDoc, bankAccount: 'personal' }).bank.bankName).toBe('ICICI');
   });
 });

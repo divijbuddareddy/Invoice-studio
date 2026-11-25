@@ -25,6 +25,8 @@ export type DiscountType = 'percent' | 'fixed';
 export type TaxTreatment = 'taxable' | 'zero-rated' | 'exempt' | 'non-gst' | 'out-of-scope';
 /** intra = CGST+SGST, inter = IGST, other = single named tax (e.g. VAT), none = no tax shown */
 export type TaxMode = 'intra' | 'inter' | 'other' | 'none';
+export type InvoiceGstType = 'gst' | 'non-gst';
+export type BankAccountType = 'company' | 'personal';
 
 export type TemplateId = 'corporate' | 'minimal' | 'modern' | 'executive';
 /** 'noto' = bundled Noto Sans (Unicode: ₹, €, accented/Greek/Cyrillic text), loaded locally on demand. */
@@ -84,6 +86,8 @@ export interface CompanyProfile {
   cin: string;
   bank: BankDetails;
   upiId: string;
+  personalBank: BankDetails;
+  personalUpiId: string;
   showUpiQr: boolean;
   signatoryName: string;
   signatoryDesignation: string;
@@ -189,6 +193,7 @@ export interface DocumentRecord {
   servicePeriodTo: string;
   taxMode: TaxMode;
   taxLabel: string; // used for taxMode 'other' (e.g. VAT)
+  bankAccount?: BankAccountType;
   items: LineItem[];
   invoiceDiscountType: DiscountType;
   invoiceDiscountValue: number;

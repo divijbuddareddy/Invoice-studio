@@ -2,7 +2,7 @@
 
 import type { DocStatus, DocType, DocumentRecord, Payment, RecurrenceRule } from '../../types';
 import { db, getCompany, getSettings, guard } from '../../services/storage/db';
-import { DOC_META, STATUS_LABEL, formatNumbering, newDocument, sequenceOf } from '../../services/domain';
+import { DOC_META, STATUS_LABEL, defaultBankAccountForTaxMode, formatNumbering, newDocument, sequenceOf } from '../../services/domain';
 import { nowIso, todayStr, uid } from '../../utils/misc';
 import { buildRecurringDraft, dueOccurrences, nextAfter } from '../recurring/recurring';
 
@@ -73,6 +73,7 @@ export async function duplicateDocument(src: DocumentRecord, asType?: DocType): 
     issueDate: fresh.issueDate,
     dueDate: fresh.dueDate,
     companySnapshot: company,
+    bankAccount: src.bankAccount ?? defaultBankAccountForTaxMode(src.taxMode),
     items: src.items.map((i) => ({ ...i, id: uid() })),
     advancePaid: 0,
     recurrenceId: undefined,

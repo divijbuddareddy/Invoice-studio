@@ -6,7 +6,7 @@ import {
 import ShareDialog from './ShareDialog';
 import type { Payment } from '../../types';
 import type { DocStatus, DocumentRecord, Frequency } from '../../types';
-import { DOC_META, FREQUENCY_LABEL, PAYMENT_METHOD_LABEL, STATUS_LABEL, documentTitle } from '../../services/domain';
+import { BANK_ACCOUNT_LABEL, DOC_META, FREQUENCY_LABEL, INVOICE_GST_TYPE_LABEL, PAYMENT_METHOD_LABEL, STATUS_LABEL, defaultBankAccountForTaxMode, documentTitle, invoiceGstType } from '../../services/domain';
 import { buildDocumentPdf } from '../../services/pdf/pdf';
 import { deleteDocument, putRecurrence, useDocument, useDocuments, usePayments, useRecurrences, useSettings } from '../../services/storage/db';
 import { convertToInvoice, duplicateDocument, noteFromInvoice, overrideStatus, removePayment, saveDocument, setStatus } from '../../features/documents/actions';
@@ -146,6 +146,12 @@ export default function DocumentView({ id }: { id: string }) {
               <dt className="text-slate-500">Date</dt><dd>{formatDate(doc.issueDate)}</dd>
               {meta.dueLabel && <><dt className="text-slate-500">{meta.dueLabel}</dt><dd>{formatDate(doc.dueDate) || '—'}</dd></>}
               <dt className="text-slate-500">Currency</dt><dd>{doc.currency}</dd>
+              {(doc.type === 'invoice' || doc.type === 'proforma') && (
+                <><dt className="text-slate-500">Invoice type</dt><dd>{INVOICE_GST_TYPE_LABEL[invoiceGstType(doc.taxMode)]}</dd></>
+              )}
+              {(doc.type === 'invoice' || doc.type === 'proforma' || doc.type === 'debit-note') && (
+                <><dt className="text-slate-500">Bank account</dt><dd>{BANK_ACCOUNT_LABEL[doc.bankAccount ?? defaultBankAccountForTaxMode(doc.taxMode)]}</dd></>
+              )}
               {doc.projectName && <><dt className="text-slate-500">Project</dt><dd>{doc.projectName}</dd></>}
               {doc.referenceNumber && <><dt className="text-slate-500">{doc.type === 'invoice' ? 'Converted from' : 'Original invoice'}</dt><dd>{doc.referenceNumber}</dd></>}
               <dt className="text-slate-500">Address</dt><dd className="text-slate-600">{addressLines(doc.client.billingAddress).join(', ') || '—'}</dd>

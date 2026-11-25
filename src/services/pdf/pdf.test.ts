@@ -10,6 +10,7 @@ const company = {
   ...emptyCompany(),
   legalName: 'Very Long Company Name Software Solutions and Artificial Intelligence Consulting Private Limited',
   gstin: '27AAPFU0939F1ZV', upiId: 'acme@okbank', bank: { accountHolder: 'Acme', bankName: 'HDFC', accountNumber: '123', ifsc: 'HDFC0001234', branch: 'Pune', swift: '' },
+  personalUpiId: 'personal@okbank', personalBank: { accountHolder: 'Founder Personal', bankName: 'ICICI', accountNumber: '987', ifsc: 'ICIC0009876', branch: 'Mumbai', swift: '' },
 };
 
 function doc(type: DocumentRecord['type'], rows: number): DocumentRecord {
@@ -55,5 +56,12 @@ describe('PDF generation', () => {
     const p: Payment = { id: 'p1', documentId: inv.id, receiptNumber: 'RCPT-1', date: '2026-01-01', amount: 100, currency: 'INR', method: 'upi', customMethod: '', reference: 'UTR1', notes: '', createdAt: '' };
     const r = buildReceiptPdf(p, inv, [p], settings.branding);
     expect(r.filename).toMatch(/^Receipt_RCPT-1_/);
+  });
+
+  it('prints different payment details for company vs personal bank account', () => {
+    const base = doc('invoice', 1);
+    const companyPdf = buildDocumentPdf({ ...base, bankAccount: 'company' }, [], settings.branding).pdf.output().replace(/\/CreationDate.*|\/ID.*/g, '');
+    const personalPdf = buildDocumentPdf({ ...base, bankAccount: 'personal' }, [], settings.branding).pdf.output().replace(/\/CreationDate.*|\/ID.*/g, '');
+    expect(companyPdf).not.toBe(personalPdf);
   });
 });

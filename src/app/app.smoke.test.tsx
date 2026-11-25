@@ -113,6 +113,58 @@ describe('app smoke test', { timeout: 30_000 }, () => {
     expect(text).not.toContain('No documents yet');
   });
 
+  it('defaults bank account by invoice type and allows manual override in invoice editor', async () => {
+    await saveCompany({
+      ...emptyCompany(),
+      legalName: 'Smoke Test Ltd',
+      bank: { accountHolder: 'Smoke Test Ltd', bankName: 'HDFC Bank', accountNumber: '11112222', ifsc: 'HDFC0001234', branch: 'BLR', swift: '' },
+      personalBank: { accountHolder: 'Founder Personal', bankName: 'ICICI Bank', accountNumber: '99998888', ifsc: 'ICIC0005678', branch: 'BLR', swift: '' },
+    });
+
+    await visit('#/d/invoice/new');
+    const getSelect = (labelText: string) => {
+      const label = [...container.querySelectorAll('label')].find((l) => l.textContent?.trim() === labelText);
+      const id = label?.getAttribute('for');
+      return id ? (document.getElementById(id) as HTMLSelectElement | null) : null;
+    };
+    const changeSelect = async (el: HTMLSelectElement, value: string) => {
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+        setter?.call(el, value);
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      await settle(20);
+    };
+
+    const typeSelect = getSelect('Invoice type');
+    const bankSelect = getSelect('Bank account');
+    expect(typeSelect).not.toBeNull();
+    expect(bankSelect).not.toBeNull();
+    expect(typeSelect!.value).toBe('gst');
+    expect(bankSelect!.value).toBe('company');
+    expect(bankSelect!.options[0].textContent).toContain('Company Bank Account');
+    expect(bankSelect!.options[1].textContent).toContain('Personal Bank Account');
+
+    // Switching to Non-GST Invoice switches default bank account to Personal Bank Account.
+    await changeSelect(typeSelect!, 'non-gst');
+    expect(getSelect('Invoice type')!.value).toBe('non-gst');
+    expect(getSelect('Bank account')!.value).toBe('personal');
+
+    // Manual override to Company Bank Account while remaining Non-GST.
+    await changeSelect(getSelect('Bank account')!, 'company');
+    expect(getSelect('Bank account')!.value).toBe('company');
+    expect(getSelect('Invoice type')!.value).toBe('non-gst');
+
+    // Switching back to GST Invoice restores Company Bank Account default.
+    await changeSelect(getSelect('Invoice type')!, 'gst');
+    expect(getSelect('Bank account')!.value).toBe('company');
+
+    // Manual override to Personal Bank Account while remaining GST.
+    await changeSelect(getSelect('Bank account')!, 'personal');
+    expect(getSelect('Bank account')!.value).toBe('personal');
+    expect(getSelect('Invoice type')!.value).toBe('gst');
+  });
+
   it('raised no uncaught errors', () => {
     expect(errors).toEqual([]);
   });

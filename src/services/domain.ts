@@ -1,8 +1,8 @@
 // Domain constants and pure helpers shared by UI, PDF and storage.
 
 import type {
-  Address, AppSettings, BankDetails, ClientSnapshot, CompanyProfile, DocStatus, DocType, DocumentRecord, Frequency,
-  LineItem, NumberingKey, NumberingRule, PaymentMethod, PaymentTermsKey, ServiceItem, TaxMode, TaxTreatment, TemplateId, Unit,
+  Address, AppSettings, BankAccountType, BankDetails, ClientSnapshot, CompanyProfile, DocStatus, DocType, DocumentRecord, Frequency,
+  InvoiceGstType, LineItem, NumberingKey, NumberingRule, PaymentMethod, PaymentTermsKey, ServiceItem, TaxMode, TaxTreatment, TemplateId, Unit,
 } from '../types';
 import { addDays, nowIso, todayStr, uid } from '../utils/misc';
 
@@ -69,6 +69,26 @@ export const TAX_MODE_LABEL: Record<TaxMode, string> = {
   other: 'Other tax (single rate, e.g. VAT)',
   none: 'No tax',
 };
+
+export const INVOICE_GST_TYPE_LABEL: Record<InvoiceGstType, string> = {
+  gst: 'GST Invoice',
+  'non-gst': 'Non-GST Invoice',
+};
+
+export const BANK_ACCOUNT_LABEL: Record<BankAccountType, string> = {
+  company: 'Company Bank Account',
+  personal: 'Personal Bank Account',
+};
+
+export const isGstTaxMode = (mode: TaxMode): boolean => mode === 'intra' || mode === 'inter';
+
+export function invoiceGstType(mode: TaxMode): InvoiceGstType {
+  return isGstTaxMode(mode) ? 'gst' : 'non-gst';
+}
+
+export function defaultBankAccountForTaxMode(mode: TaxMode): BankAccountType {
+  return isGstTaxMode(mode) ? 'company' : 'personal';
+}
 
 export const TAX_PRESETS = [0, 5, 12, 18, 28];
 
@@ -141,11 +161,46 @@ export const emptyBank = (): BankDetails => ({ accountHolder: '', bankName: '', 
 
 export const emptyCompany = (): CompanyProfile => ({
   legalName: '', logo: null, address: { ...emptyAddress(), country: 'India' }, email: '', phone: '', website: '',
-  gstin: '', pan: '', cin: '', bank: emptyBank(), upiId: '', showUpiQr: true, signatoryName: '', signatoryDesignation: '',
+  gstin: '', pan: '', cin: '', bank: emptyBank(), upiId: '', personalBank: emptyBank(), personalUpiId: '',
+  showUpiQr: true, signatoryName: '', signatoryDesignation: '',
   signature: null, stamp: null, defaultPaymentTerms: 'net15', defaultNotes: 'Thank you for your business.',
   defaultTerms: 'Payment is due within the agreed terms. Please quote the invoice number with your payment.',
   defaultFooter: '', declaration: '',
 });
+
+export function hasBankDetails(bank: BankDetails | undefined, upiId = ''): boolean {
+  if (!bank) return Boolean(upiId.trim());
+  return Boolean(
+    bank.accountHolder.trim() ||
+    bank.bankName.trim() ||
+    bank.accountNumber.trim() ||
+    bank.ifsc.trim() ||
+    bank.branch.trim() ||
+    bank.swift.trim() ||
+    upiId.trim(),
+  );
+}
+
+export function resolveBankDetails(doc: Pick<DocumentRecord, 'companySnapshot' | 'bankAccount'>): {
+  accountType: BankAccountType;
+  bank: BankDetails;
+  upiId: string;
+} {
+  const accountType: BankAccountType = doc.bankAccount ?? 'company';
+  const co = doc.companySnapshot;
+  if (accountType === 'personal') {
+    return {
+      accountType,
+      bank: co.personalBank ?? emptyBank(),
+      upiId: co.personalUpiId ?? '',
+    };
+  }
+  return {
+    accountType,
+    bank: co.bank ?? emptyBank(),
+    upiId: co.upiId ?? '',
+  };
+}
 
 const NUMBERING_PREFIX: Record<NumberingKey, string> = {
   invoice: 'INV-{YYYY}-', quotation: 'QT-{YYYY}-', proforma: 'PI-{YYYY}-', 'credit-note': 'CN-{YYYY}-',
@@ -212,6 +267,7 @@ export function newDocument(type: DocType, settings: AppSettings, company: Compa
     paymentTerms: terms, customTermsDays: 0, companySnapshot: structuredClone(company), client: emptyClientSnapshot(),
     projectName: '', projectCode: '', poReference: '', supplierState, placeOfSupply: '', reverseCharge: false,
     servicePeriodFrom: '', servicePeriodTo: '', taxMode: settings.defaultTaxMode, taxLabel: 'VAT',
+    bankAccount: defaultBankAccountForTaxMode(settings.defaultTaxMode),
     items: [emptyLine(settings.defaultTaxRate)], invoiceDiscountType: 'percent', invoiceDiscountValue: 0, charges: [],
     advancePaid: 0, roundOff: false, notes: type === 'purchase-order' ? '' : company.defaultNotes,
     terms:

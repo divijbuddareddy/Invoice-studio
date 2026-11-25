@@ -1,7 +1,7 @@
 // Versioned backup format + strict validation of untrusted import files (pure, no storage access).
 
 import { z } from 'zod';
-import { SCHEMA_VERSION, defaultSettings, emptyCompany } from '../domain';
+import { SCHEMA_VERSION, defaultSettings, emptyBank, emptyCompany } from '../domain';
 import { isSafeImageDataUrl } from '../../utils/image';
 import type { AppSettings, Client, CompanyProfile, DocumentRecord, Payment, RecurrenceRule, ServiceItem } from '../../types';
 
@@ -30,7 +30,8 @@ const status = z.enum([
 
 export const companySchema = z.object({
   legalName: str(300), logo: image, address, email: str(200), phone: str(50), website: str(200), gstin: str(20), pan: str(20),
-  cin: str(30), bank, upiId: str(200), showUpiQr: z.boolean().default(true), signatoryName: str(200), signatoryDesignation: str(200),
+  cin: str(30), bank, upiId: str(200), personalBank: bank.optional().default(emptyBank), personalUpiId: str(200).optional().default(''),
+  showUpiQr: z.boolean().default(true), signatoryName: str(200), signatoryDesignation: str(200),
   signature: image, stamp: image, defaultPaymentTerms: termsKey.default('net15'), defaultNotes: str(), defaultTerms: str(),
   defaultFooter: str(), declaration: str(),
 });
@@ -66,7 +67,8 @@ const documentSchema = z.object({
   paymentTerms: termsKey, customTermsDays: num.default(0), companySnapshot: companySchema, client: clientSnapshot,
   projectName: str(300), projectCode: str(100), poReference: str(100), supplierState: str(10), placeOfSupply: str(10),
   reverseCharge: z.boolean().default(false), servicePeriodFrom: date, servicePeriodTo: date,
-  taxMode: z.enum(['intra', 'inter', 'other', 'none']), taxLabel: str(30), items: z.array(lineSchema).max(2000),
+  taxMode: z.enum(['intra', 'inter', 'other', 'none']), taxLabel: str(30), bankAccount: z.enum(['company', 'personal']).optional(),
+  items: z.array(lineSchema).max(2000),
   invoiceDiscountType: discountType, invoiceDiscountValue: num.nonnegative(),
   charges: z.array(z.object({ id, label: str(200), amount: num.nonnegative(), taxRate: num.min(0).max(100) })).max(100),
   advancePaid: num.nonnegative(), roundOff: z.boolean().default(false), notes: str(), terms: str(), footer: str(),
@@ -166,7 +168,15 @@ export function parseBackup(text: string): ParseResult {
   }
   const data = result.data.data as unknown as BackupData;
   // Fill any fields added in newer minor revisions with defaults.
-  if (data.company) data.company = { ...emptyCompany(), ...data.company };
+  if (data.company) {
+    const c = emptyCompany();
+    data.company = {
+      ...c,
+      ...data.company,
+      bank: { ...emptyBank(), ...data.company.bank },
+      personalBank: { ...emptyBank(), ...(data.company.personalBank ?? {}) },
+    };
+  }
   if (data.settings) {
     const d = defaultSettings();
     data.settings = { ...d, ...data.settings, numbering: { ...d.numbering, ...data.settings.numbering }, schemaVersion: SCHEMA_VERSION };

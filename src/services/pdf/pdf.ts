@@ -6,7 +6,7 @@ import autoTable from 'jspdf-autotable';
 import QRCode from 'qrcode';
 import type { Branding, CompanyProfile, DocumentRecord, Payment, StoredImage, TemplateId } from '../../types';
 import { calculateTotals, type Totals } from '../calculations/calc';
-import { DOC_META, PAYMENT_METHOD_LABEL, TREATMENT_LABEL, documentTitle, stateLabel, termsLabel, unitText } from '../domain';
+import { DOC_META, PAYMENT_METHOD_LABEL, TREATMENT_LABEL, documentTitle, resolveBankDetails, stateLabel, termsLabel, unitText } from '../domain';
 import { paymentsFor, sumPayments } from '../../features/payments/payments';
 import { currencyDigits, formatMoney, formatMoneyCode, formatNumber, toMinor } from '../../utils/money';
 import { UNICODE_FONT, registerUnicodeFont } from './fonts';
@@ -453,15 +453,15 @@ function totalRows(c: Ctx, doc: DocumentRecord, t: Totals, showPaid: boolean): {
   return rows;
 }
 
-function bankLines(co: CompanyProfile): string[] {
-  const b = co.bank;
+function bankLines(doc: DocumentRecord): string[] {
+  const { bank: b, upiId } = resolveBankDetails(doc);
   return [
     b.accountHolder && `Account name: ${b.accountHolder}`,
     b.bankName && `Bank: ${b.bankName}${b.branch ? `, ${b.branch}` : ''}`,
     b.accountNumber && `Account no: ${b.accountNumber}`,
     b.ifsc && `IFSC: ${b.ifsc}`,
     b.swift && `SWIFT/BIC: ${b.swift}`,
-    co.upiId && `UPI: ${co.upiId}`,
+    upiId && `UPI: ${upiId}`,
   ].filter(Boolean) as string[];
 }
 
@@ -493,12 +493,13 @@ function drawTotals(c: Ctx, doc: DocumentRecord, t: Totals) {
   const words = amountInWords(doc.type === 'invoice' && t.paidMinor > 0 ? t.grandTotalMinor : t.grandTotalMinor, doc.currency, currencyDigits(doc.currency));
   font(c, 'italic', 8);
   const wordLines: string[] = pdf.splitTextToSize(safe(c, words), leftW);
-  const upi = !!(showPayInfo && co.upiId && co.showUpiQr && doc.currency === 'INR' && t.balanceMinor > 0);
+  const { bank: selectedBank, upiId } = resolveBankDetails(doc);
+  const upi = !!(showPayInfo && upiId && co.showUpiQr && doc.currency === 'INR' && t.balanceMinor > 0);
   const QR = 22;
   // QR sits to the right of the bank details, so bank text wraps in the remaining width.
   const bankW = upi ? leftW - QR - 4 : leftW;
   font(c, 'normal', 8.5);
-  const banks: string[] = (showPayInfo ? bankLines(co) : []).flatMap((b) => pdf.splitTextToSize(safe(c, b), bankW) as string[]);
+  const banks: string[] = (showPayInfo ? bankLines(doc) : []).flatMap((b) => pdf.splitTextToSize(safe(c, b), bankW) as string[]);
   let leftH = 6 + wordLines.length * 3.8;
   if (banks.length || upi) leftH += 8 + Math.max(banks.length * 4, upi ? QR + 7 : 0);
   const discountNote = t.lineDiscountMinor || t.invoiceDiscountMinor;
@@ -564,7 +565,8 @@ function drawTotals(c: Ctx, doc: DocumentRecord, t: Totals) {
     if (upi) {
       const qx = M + leftW - QR;
       const amount = (t.balanceMinor / 10 ** currencyDigits('INR')).toFixed(2);
-      const uri = `upi://pay?pa=${encodeURIComponent(co.upiId)}&pn=${encodeURIComponent(co.legalName.slice(0, 40))}&am=${amount}&cu=INR&tn=${encodeURIComponent(doc.number)}`;
+      const payeeName = (selectedBank.accountHolder.trim() || co.legalName).slice(0, 40);
+      const uri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(doc.number)}`;
       if (drawQr(c, uri, qx, blockTop, QR)) {
         font(c, 'normal', 6.5, MUTED);
         pdf.text('Scan to pay via UPI', qx + QR / 2, blockTop + QR + 3, { align: 'center' });

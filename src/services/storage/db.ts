@@ -3,7 +3,7 @@
 import Dexie, { type Table } from 'dexie';
 import { useLiveQuery } from 'dexie-react-hooks';
 import type { AppSettings, Client, CompanyProfile, DocumentRecord, Payment, RecurrenceRule, ServiceItem } from '../../types';
-import { defaultSettings, emptyCompany, starterServices } from '../domain';
+import { defaultSettings, emptyBank, emptyCompany, starterServices } from '../domain';
 
 interface MetaRow {
   key: string;
@@ -60,7 +60,14 @@ export async function guard<T>(op: () => Promise<T>): Promise<T> {
 
 export async function getCompany(): Promise<CompanyProfile> {
   const row = await db.meta.get('company');
-  return { ...emptyCompany(), ...((row?.value as CompanyProfile) ?? {}) };
+  const d = emptyCompany();
+  const v = (row?.value as Partial<CompanyProfile>) ?? {};
+  return {
+    ...d,
+    ...v,
+    bank: { ...emptyBank(), ...(v.bank ?? {}) },
+    personalBank: { ...emptyBank(), ...(v.personalBank ?? {}) },
+  };
 }
 export const saveCompany = (c: CompanyProfile) => guard(() => db.meta.put({ key: 'company', value: c }));
 
