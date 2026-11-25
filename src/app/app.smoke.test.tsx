@@ -9,6 +9,7 @@ import App from './App';
 import { db, saveCompany } from '../services/storage/db';
 import { createDraft, saveDocument, recordPayment } from '../features/documents/actions';
 import { emptyCompany, emptyLine } from '../services/domain';
+import { addDays, addMonths, todayStr } from '../utils/misc';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 URL.createObjectURL = () => 'blob:mock';
@@ -163,6 +164,79 @@ describe('app smoke test', { timeout: 30_000 }, () => {
     await changeSelect(getSelect('Bank account')!, 'personal');
     expect(getSelect('Bank account')!.value).toBe('personal');
     expect(getSelect('Invoice type')!.value).toBe('gst');
+
+    // Billing frequency & date calendar inputs are present on invoice editor.
+    const freqSelect = getSelect('Billing frequency');
+    const startInput = (() => {
+      const label = [...container.querySelectorAll('label')].find((l) => l.textContent?.trim() === 'Billing start date');
+      const id = label?.getAttribute('for');
+      return id ? (document.getElementById(id) as HTMLInputElement | null) : null;
+    })();
+    const endInput = (() => {
+      const label = [...container.querySelectorAll('label')].find((l) => l.textContent?.trim() === 'Billing end date');
+      const id = label?.getAttribute('for');
+      return id ? (document.getElementById(id) as HTMLInputElement | null) : null;
+    })();
+    expect(freqSelect?.value).toBe('one-time');
+    expect(startInput?.type).toBe('date');
+    expect(endInput?.type).toBe('date');
+    await changeSelect(freqSelect!, 'monthly');
+    expect(getSelect('Billing frequency')!.value).toBe('monthly');
+    expect(startInput!.value).toBe(todayStr());
+  });
+
+  it('shows recurring invoice notifications on the bell icon and decreases count when clicked', async () => {
+    const today = todayStr();
+    const monthlyStart = addMonths(addDays(today, 3), -1);
+    const yearlyStart = addMonths(addDays(today, 10), -12);
+
+    const mInv = await createDraft('invoice');
+    mInv.number = 'INV-NOTIF-M';
+    mInv.client.name = 'Monthly Corp';
+    mInv.status = 'unpaid';
+    mInv.issueDate = monthlyStart;
+    mInv.billingFrequency = 'monthly';
+    mInv.billingStartDate = monthlyStart;
+    await saveDocument(mInv);
+
+    const yInv = await createDraft('invoice');
+    yInv.number = 'INV-NOTIF-Y';
+    yInv.client.name = 'Annual Corp';
+    yInv.status = 'unpaid';
+    yInv.issueDate = yearlyStart;
+    yInv.billingFrequency = 'yearly';
+    yInv.billingStartDate = yearlyStart;
+    await saveDocument(yInv);
+
+    const oneTimeInv = await createDraft('invoice');
+    oneTimeInv.number = 'INV-ONETIME';
+    oneTimeInv.client.name = 'OneTime Corp';
+    oneTimeInv.status = 'unpaid';
+    oneTimeInv.billingFrequency = 'one-time';
+    await saveDocument(oneTimeInv);
+
+    await visit('#/');
+    const badges = () => [...container.querySelectorAll('[data-testid="notification-count"]')];
+    expect(badges().length).toBeGreaterThan(0);
+    expect(badges()[0].textContent).toBe('2');
+
+    const bellBtn = container.querySelector('[aria-label^="Notifications"]') as HTMLButtonElement | null;
+    expect(bellBtn).not.toBeNull();
+    await act(async () => { bellBtn!.click(); });
+    await settle(20);
+
+    const dialog = container.querySelector('[role="dialog"][aria-label="Notifications"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog!.textContent).toContain('INV-NOTIF-M');
+    expect(dialog!.textContent).toContain('INV-NOTIF-Y');
+    expect(dialog!.textContent).not.toContain('INV-ONETIME');
+
+    const firstItem = [...dialog!.querySelectorAll('button')].find((b) => b.textContent?.includes('INV-NOTIF-M'));
+    expect(firstItem).toBeDefined();
+    await act(async () => { firstItem!.click(); });
+    await settle();
+
+    expect(badges()[0].textContent).toBe('1');
   });
 
   it('raised no uncaught errors', () => {

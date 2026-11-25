@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FilePlus2, FileText, FileClock, FileMinus, FilePlus, Receipt, ShoppingCart, Users, Boxes, History, Repeat,
-  Settings, Menu, X, CalendarClock, BarChart3, Sun, Moon, Monitor,
+  Settings, Menu, X, CalendarClock, BarChart3, Sun, Moon, Monitor, Bell,
 } from 'lucide-react';
 import { getThemePref, setThemePref, type ThemePref } from '../../services/theme';
+import { BILLING_FREQUENCY_LABEL } from '../../services/domain';
+import { buildInvoiceNotifications } from '../../features/notifications/notifications';
 
 function ThemeToggle() {
   const [pref, setPref] = useState<ThemePref>(getThemePref());
@@ -27,8 +29,8 @@ function ThemeToggle() {
 }
 import { findDueRecurrences, generateDueDrafts, type DueItem } from '../../features/documents/actions';
 import { useAction, Modal } from '../ui';
-import { useCompany } from '../../services/storage/db';
-import { formatDate } from '../../utils/misc';
+import { markAllNotificationsRead, markNotificationRead, useCompany, useDocuments, useSettings } from '../../services/storage/db';
+import { formatDate, todayStr } from '../../utils/misc';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -77,14 +79,41 @@ function Brand() {
   );
 }
 
+function BellButton({ unreadCount, open, onClick }: { unreadCount: number; open: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={open}
+      aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : 'Notifications'}
+      className="relative rounded-md p-2 text-slate-200 hover:bg-white/10 hover:text-white"
+    >
+      <Bell size={18} aria-hidden />
+      {unreadCount > 0 && (
+        <span
+          data-testid="notification-count"
+          className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white"
+        >
+          {unreadCount > 99 ? '99+' : unreadCount}
+        </span>
+      )}
+    </button>
+  );
+}
+
 export default function Shell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [due, setDue] = useState<DueItem[]>([]);
   const [showDue, setShowDue] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [today, setToday] = useState(() => todayStr());
   const [busy, setBusy] = useState(false);
   const run = useAction();
   const location = useLocation();
+  const navigate = useNavigate();
   const company = useCompany();
+  const docs = useDocuments();
+  const settings = useSettings();
 
   // Recurring check on app open (static hosting cannot run background jobs).
   useEffect(() => {
@@ -95,16 +124,37 @@ export default function Shell() {
   }, []);
 
   useEffect(() => {
+    const id = setInterval(() => setToday(todayStr()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    setToday(todayStr());
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setNotifOpen(false);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [notifOpen]);
+
+  useEffect(() => {
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
+  const notifications = useMemo(
+    () => buildInvoiceNotifications(docs ?? [], settings?.readNotificationIds ?? [], today),
+    [docs, settings?.readNotificationIds, today],
+  );
+  const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
   const totalPeriods = due.reduce((a, d) => a + d.periods.length, 0);
 
   return (
     <div className="min-h-screen lg:flex">
       {/* Desktop sidebar */}
       <aside className="no-print hidden w-60 shrink-0 bg-brand-900 lg:fixed lg:inset-y-0 lg:flex lg:flex-col">
-        <Brand />
+        <div className="flex items-center justify-between pr-3">
+          <Brand />
+          <BellButton unreadCount={unreadCount} open={notifOpen} onClick={() => setNotifOpen((v) => !v)} />
+        </div>
         <div className="flex-1 overflow-y-auto pb-4"><NavItems /></div>
         <ThemeToggle />
         <p className="px-4 pb-4 text-[11px] leading-snug text-slate-400">Data is stored only in this browser. Back up regularly from Settings.</p>
@@ -113,7 +163,10 @@ export default function Shell() {
       {/* Mobile top bar */}
       <header className="no-print sticky top-0 z-30 flex items-center justify-between bg-brand-900 px-3 lg:hidden">
         <Brand />
-        <button className="rounded-md p-2 text-white hover:bg-white/10" onClick={() => setMobileOpen(true)} aria-label="Open navigation menu"><Menu size={22} /></button>
+        <div className="flex items-center gap-1">
+          <BellButton unreadCount={unreadCount} open={notifOpen} onClick={() => setNotifOpen((v) => !v)} />
+          <button className="rounded-md p-2 text-white hover:bg-white/10" onClick={() => setMobileOpen(true)} aria-label="Open navigation menu"><Menu size={22} /></button>
+        </div>
       </header>
       {mobileOpen && (
         <div className="no-print fixed inset-0 z-40 lg:hidden">
@@ -187,6 +240,82 @@ export default function Shell() {
           ))}
         </ul>
       </Modal>
+
+      {notifOpen && (
+        <>
+          <div className="no-print fixed inset-0 z-40" onClick={() => setNotifOpen(false)} aria-hidden />
+          <div
+            role="dialog"
+            aria-label="Notifications"
+            className="no-print card fixed right-3 top-14 z-50 w-96 max-w-[calc(100vw-1.5rem)] overflow-hidden shadow-xl lg:left-64 lg:right-auto lg:top-4"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-slate-900">Notifications</h2>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                  {unreadCount} unread
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    className="btn-ghost btn-sm"
+                    onClick={() => markAllNotificationsRead(notifications.filter((n) => !n.read).map((n) => n.id))}
+                  >
+                    Mark all read
+                  </button>
+                )}
+                <button type="button" className="btn-ghost btn-sm" onClick={() => setNotifOpen(false)} aria-label="Close notifications">
+                  <X size={15} />
+                </button>
+              </div>
+            </div>
+            <div className="max-h-96 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <p className="px-4 py-8 text-center text-sm text-slate-500">
+                  No upcoming recurring invoice reminders.
+                </p>
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {notifications.map((n) => (
+                    <li key={n.id}>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!n.read) await markNotificationRead(n.id);
+                          setNotifOpen(false);
+                          navigate(`/d/invoice/${n.documentId}`);
+                        }}
+                        className={`flex w-full items-start gap-2.5 px-4 py-3 text-left transition hover:bg-slate-50 ${n.read ? 'opacity-60' : ''}`}
+                      >
+                        <span
+                          aria-hidden
+                          className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${n.read ? 'bg-slate-300' : 'bg-brand-600'}`}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-sm font-medium text-slate-900">
+                              {n.invoiceNumber} · {n.clientName}
+                            </span>
+                            <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                              {n.daysUntilDue === 0 ? 'Due today' : n.daysUntilDue === 1 ? 'In 1 day' : `In ${n.daysUntilDue} days`}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-slate-500">
+                            <span>{BILLING_FREQUENCY_LABEL[n.frequency]} · {formatDate(n.dueDate)}</span>
+                            {n.read && <span>Read</span>}
+                          </div>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

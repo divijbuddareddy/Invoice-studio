@@ -1,7 +1,7 @@
 // Domain constants and pure helpers shared by UI, PDF and storage.
 
 import type {
-  Address, AppSettings, BankAccountType, BankDetails, ClientSnapshot, CompanyProfile, DocStatus, DocType, DocumentRecord, Frequency,
+  Address, AppSettings, BankAccountType, BankDetails, BillingFrequency, ClientSnapshot, CompanyProfile, DocStatus, DocType, DocumentRecord, Frequency,
   InvoiceGstType, LineItem, NumberingKey, NumberingRule, PaymentMethod, PaymentTermsKey, ServiceItem, TaxMode, TaxTreatment, TemplateId, Unit,
 } from '../types';
 import { addDays, nowIso, todayStr, uid } from '../utils/misc';
@@ -121,6 +121,13 @@ export const FREQUENCY_LABEL: Record<Frequency, string> = {
   weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly', 'half-yearly': 'Half-yearly', yearly: 'Yearly',
 };
 
+export const BILLING_FREQUENCY_LABEL: Record<BillingFrequency, string> = {
+  'one-time': 'One-time',
+  monthly: 'Monthly recurring',
+  quarterly: 'Quarterly recurring',
+  yearly: 'Yearly recurring',
+};
+
 export const TEMPLATES: { id: TemplateId; name: string; description: string }[] = [
   { id: 'corporate', name: 'Corporate Blue', description: 'White background, navy headings, blue accents, formal B2B layout.' },
   { id: 'minimal', name: 'Minimal Professional', description: 'Black/gray typography, clean whitespace, simple rules.' },
@@ -220,6 +227,7 @@ export const defaultSettings = (): AppSettings => ({
   customFields: [],
   servicesSeeded: false,
   lastBackupAt: '',
+  readNotificationIds: [],
 });
 
 export function formatNumbering(rule: NumberingRule, date = todayStr()): string {
@@ -266,7 +274,8 @@ export function newDocument(type: DocType, settings: AppSettings, company: Compa
     dueDate: type === 'credit-note' ? '' : addDays(issueDate, dueOffset), currency: settings.defaultCurrency,
     paymentTerms: terms, customTermsDays: 0, companySnapshot: structuredClone(company), client: emptyClientSnapshot(),
     projectName: '', projectCode: '', poReference: '', supplierState, placeOfSupply: '', reverseCharge: false,
-    servicePeriodFrom: '', servicePeriodTo: '', taxMode: settings.defaultTaxMode, taxLabel: 'VAT',
+    servicePeriodFrom: '', servicePeriodTo: '', billingFrequency: 'one-time', billingStartDate: '', billingEndDate: '',
+    taxMode: settings.defaultTaxMode, taxLabel: 'VAT',
     bankAccount: defaultBankAccountForTaxMode(settings.defaultTaxMode),
     items: [emptyLine(settings.defaultTaxRate)], invoiceDiscountType: 'percent', invoiceDiscountValue: 0, charges: [],
     advancePaid: 0, roundOff: false, notes: type === 'purchase-order' ? '' : company.defaultNotes,

@@ -67,6 +67,8 @@ const documentSchema = z.object({
   paymentTerms: termsKey, customTermsDays: num.default(0), companySnapshot: companySchema, client: clientSnapshot,
   projectName: str(300), projectCode: str(100), poReference: str(100), supplierState: str(10), placeOfSupply: str(10),
   reverseCharge: z.boolean().default(false), servicePeriodFrom: date, servicePeriodTo: date,
+  billingFrequency: z.enum(['one-time', 'monthly', 'quarterly', 'yearly']).optional().default('one-time'),
+  billingStartDate: date, billingEndDate: date,
   taxMode: z.enum(['intra', 'inter', 'other', 'none']), taxLabel: str(30), bankAccount: z.enum(['company', 'personal']).optional(),
   items: z.array(lineSchema).max(2000),
   invoiceDiscountType: discountType, invoiceDiscountValue: num.nonnegative(),
@@ -106,6 +108,7 @@ const settingsSchema = z.object({
   customFields: z.array(customFieldDef).max(50).default([]),
   servicesSeeded: z.boolean().default(true),
   lastBackupAt: str(40),
+  readNotificationIds: z.array(str(200)).max(5000).optional().default([]),
 });
 
 export const backupSchema = z.object({

@@ -27,6 +27,7 @@ export type TaxTreatment = 'taxable' | 'zero-rated' | 'exempt' | 'non-gst' | 'ou
 export type TaxMode = 'intra' | 'inter' | 'other' | 'none';
 export type InvoiceGstType = 'gst' | 'non-gst';
 export type BankAccountType = 'company' | 'personal';
+export type BillingFrequency = 'one-time' | 'monthly' | 'quarterly' | 'yearly';
 
 export type TemplateId = 'corporate' | 'minimal' | 'modern' | 'executive';
 /** 'noto' = bundled Noto Sans (Unicode: ₹, €, accented/Greek/Cyrillic text), loaded locally on demand. */
@@ -191,6 +192,9 @@ export interface DocumentRecord {
   reverseCharge: boolean;
   servicePeriodFrom: string;
   servicePeriodTo: string;
+  billingFrequency?: BillingFrequency;
+  billingStartDate?: string; // yyyy-mm-dd
+  billingEndDate?: string; // yyyy-mm-dd
   taxMode: TaxMode;
   taxLabel: string; // used for taxMode 'other' (e.g. VAT)
   bankAccount?: BankAccountType;
@@ -280,4 +284,5 @@ export interface AppSettings {
   customFields: CustomFieldDef[];
   servicesSeeded: boolean;
   lastBackupAt: string;
+  readNotificationIds?: string[];
 }

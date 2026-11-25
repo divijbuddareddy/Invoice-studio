@@ -78,6 +78,7 @@ export async function getSettings(): Promise<AppSettings> {
   return {
     ...d, ...v, numbering: { ...d.numbering, ...(v.numbering ?? {}) }, branding: { ...d.branding, ...(v.branding ?? {}) },
     customFields: v.customFields ?? [],
+    readNotificationIds: v.readNotificationIds ?? [],
   };
 }
 export const saveSettings = (s: AppSettings) => guard(() => db.meta.put({ key: 'settings', value: s }));
@@ -144,6 +145,21 @@ export async function deleteDocument(id: string): Promise<void> {
 export async function bumpNumbering(key: keyof AppSettings['numbering']): Promise<void> {
   await updateSettings((s) => {
     s.numbering[key] = { ...s.numbering[key], next: s.numbering[key].next + 1 };
+  });
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  await updateSettings((s) => {
+    const existing = s.readNotificationIds ?? [];
+    if (existing.includes(id)) return;
+    s.readNotificationIds = [...existing, id];
+  });
+}
+
+export async function markAllNotificationsRead(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  await updateSettings((s) => {
+    s.readNotificationIds = [...new Set([...(s.readNotificationIds ?? []), ...ids])];
   });
 }
 

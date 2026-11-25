@@ -66,12 +66,20 @@ describe('backup validation', () => {
     updated.data.company.personalBank.bankName = 'ICICI';
     updated.data.company.personalUpiId = 'me@icici';
     updated.data.documents[0].bankAccount = 'personal';
+    updated.data.documents[0].billingFrequency = 'monthly';
+    updated.data.documents[0].billingStartDate = '2026-11-01';
+    updated.data.documents[0].billingEndDate = '2027-11-01';
+    updated.data.settings.readNotificationIds = ['doc1:2026-12-01'];
     const updatedRes = parseBackup(JSON.stringify(updated));
     expect(updatedRes.ok).toBe(true);
     if (updatedRes.ok) {
       expect(updatedRes.backup.data.company?.personalBank.bankName).toBe('ICICI');
       expect(updatedRes.backup.data.company?.personalUpiId).toBe('me@icici');
       expect(updatedRes.backup.data.documents[0].bankAccount).toBe('personal');
+      expect(updatedRes.backup.data.documents[0].billingFrequency).toBe('monthly');
+      expect(updatedRes.backup.data.documents[0].billingStartDate).toBe('2026-11-01');
+      expect(updatedRes.backup.data.documents[0].billingEndDate).toBe('2027-11-01');
+      expect(updatedRes.backup.data.settings?.readNotificationIds).toEqual(['doc1:2026-12-01']);
     }
   });
 });

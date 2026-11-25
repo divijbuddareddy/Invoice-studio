@@ -6,7 +6,7 @@ import {
 import ShareDialog from './ShareDialog';
 import type { Payment } from '../../types';
 import type { DocStatus, DocumentRecord, Frequency } from '../../types';
-import { BANK_ACCOUNT_LABEL, DOC_META, FREQUENCY_LABEL, INVOICE_GST_TYPE_LABEL, PAYMENT_METHOD_LABEL, STATUS_LABEL, defaultBankAccountForTaxMode, documentTitle, invoiceGstType } from '../../services/domain';
+import { BANK_ACCOUNT_LABEL, BILLING_FREQUENCY_LABEL, DOC_META, FREQUENCY_LABEL, INVOICE_GST_TYPE_LABEL, PAYMENT_METHOD_LABEL, STATUS_LABEL, defaultBankAccountForTaxMode, documentTitle, invoiceGstType } from '../../services/domain';
 import { buildDocumentPdf } from '../../services/pdf/pdf';
 import { deleteDocument, putRecurrence, useDocument, useDocuments, usePayments, useRecurrences, useSettings } from '../../services/storage/db';
 import { convertToInvoice, duplicateDocument, noteFromInvoice, overrideStatus, removePayment, saveDocument, setStatus } from '../../features/documents/actions';
@@ -151,6 +151,13 @@ export default function DocumentView({ id }: { id: string }) {
               )}
               {(doc.type === 'invoice' || doc.type === 'proforma' || doc.type === 'debit-note') && (
                 <><dt className="text-slate-500">Bank account</dt><dd>{BANK_ACCOUNT_LABEL[doc.bankAccount ?? defaultBankAccountForTaxMode(doc.taxMode)]}</dd></>
+              )}
+              {doc.type === 'invoice' && (
+                <>
+                  <dt className="text-slate-500">Billing frequency</dt><dd>{BILLING_FREQUENCY_LABEL[doc.billingFrequency ?? 'one-time']}</dd>
+                  {doc.billingStartDate && <><dt className="text-slate-500">Billing start</dt><dd>{formatDate(doc.billingStartDate)}</dd></>}
+                  {doc.billingEndDate && <><dt className="text-slate-500">Billing end</dt><dd>{formatDate(doc.billingEndDate)}</dd></>}
+                </>
               )}
               {doc.projectName && <><dt className="text-slate-500">Project</dt><dd>{doc.projectName}</dd></>}
               {doc.referenceNumber && <><dt className="text-slate-500">{doc.type === 'invoice' ? 'Converted from' : 'Original invoice'}</dt><dd>{doc.referenceNumber}</dd></>}

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useBlocker, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Copy, Download, Eye, FileCheck2, Printer, RotateCcw, Save, AlertTriangle, Info } from 'lucide-react';
-import type { BankAccountType, DocType, DocumentRecord, DocStatus, InvoiceGstType, PaymentTermsKey, TaxMode, TemplateId } from '../../types';
+import type { BankAccountType, BillingFrequency, DocType, DocumentRecord, DocStatus, InvoiceGstType, PaymentTermsKey, TaxMode, TemplateId } from '../../types';
 import {
-  BANK_ACCOUNT_LABEL, DOC_META, INDIAN_STATES, INVOICE_GST_TYPE_LABEL, PAYMENT_TERMS, TAX_DISCLAIMER, TAX_MODE_LABEL, TEMPLATES,
+  BANK_ACCOUNT_LABEL, BILLING_FREQUENCY_LABEL, DOC_META, INDIAN_STATES, INVOICE_GST_TYPE_LABEL, PAYMENT_TERMS, TAX_DISCLAIMER, TAX_MODE_LABEL, TEMPLATES,
   defaultBankAccountForTaxMode, hasBankDetails, invoiceGstType, isGstTaxMode, resolveBankDetails, suggestTaxMode, termsDays,
 } from '../../services/domain';
 import { calculateTotals } from '../../services/calculations/calc';
@@ -144,12 +144,30 @@ export default function DocumentEditor({ type, id }: { type: DocType; id?: strin
       : 'Manually selected for this document.'
     : 'No details saved for this bank account yet — configure them in Company Settings.';
 
+  const setBillingFrequency = (freq: BillingFrequency) => {
+    patch({
+      billingFrequency: freq,
+      ...(freq !== 'one-time' && !doc.billingStartDate ? { billingStartDate: doc.issueDate } : {}),
+    });
+  };
+
+  const openDatePicker = (el: HTMLInputElement) => {
+    try {
+      (el as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
+    } catch {
+      /* ignore when browser blocks or does not implement showPicker */
+    }
+  };
+
   const validate = async (finalising: boolean): Promise<boolean> => {
     const e: Record<string, string> = {};
     if (!doc.number.trim()) e.number = 'Enter a document number.';
     else if (await isNumberTaken(doc)) e.number = `Another ${meta.label.toLowerCase()} already uses ${doc.number}. Choose a different number.`;
     if (!doc.issueDate) e.issueDate = 'Choose the document date.';
     if (doc.dueDate && doc.issueDate && doc.dueDate < doc.issueDate) e.dueDate = `${meta.dueLabel} cannot be before the document date.`;
+    if (type === 'invoice' && doc.billingStartDate && doc.billingEndDate && doc.billingEndDate < doc.billingStartDate) {
+      e.billingEndDate = 'Billing end date cannot be before billing start date.';
+    }
     if (finalising) {
       if (!doc.client.name.trim()) e.clientName = `Enter the ${meta.partyLabel.toLowerCase()} name.`;
       const valid = doc.items.filter((i) => i.description.trim() && i.quantity > 0);
@@ -283,6 +301,44 @@ export default function DocumentEditor({ type, id }: { type: DocType; id?: strin
                   ]}
                   hint={bankHint}
                 />
+              )}
+              {type === 'invoice' && (
+                <>
+                  <Select
+                    label="Billing frequency"
+                    value={doc.billingFrequency ?? 'one-time'}
+                    onChange={(e) => setBillingFrequency(e.target.value as BillingFrequency)}
+                    options={(['one-time', 'monthly', 'quarterly', 'yearly'] as BillingFrequency[]).map((f) => ({
+                      value: f,
+                      label: BILLING_FREQUENCY_LABEL[f],
+                    }))}
+                    hint={
+                      doc.billingFrequency === 'monthly'
+                        ? 'Reminder 5 days before each monthly billing date.'
+                        : doc.billingFrequency === 'quarterly'
+                          ? 'Reminder 10 days before each quarterly billing date.'
+                          : doc.billingFrequency === 'yearly'
+                            ? 'Reminder 15 days before each annual billing date.'
+                            : 'One-time invoices do not trigger recurring reminders.'
+                    }
+                  />
+                  <TextInput
+                    label="Billing start date"
+                    type="date"
+                    value={doc.billingStartDate ?? ''}
+                    onClick={(e) => openDatePicker(e.currentTarget)}
+                    onChange={(e) => patch({ billingStartDate: e.target.value })}
+                  />
+                  <TextInput
+                    label="Billing end date"
+                    type="date"
+                    value={doc.billingEndDate ?? ''}
+                    error={errors.billingEndDate}
+                    onClick={(e) => openDatePicker(e.currentTarget)}
+                    onChange={(e) => patch({ billingEndDate: e.target.value })}
+                    hint="Optional — leave blank if ongoing."
+                  />
+                </>
               )}
               <Select label="Currency" value={doc.currency} onChange={(e) => patch({ currency: e.target.value })} options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.code} — ${c.name}` }))}
                 hint={doc.currency !== 'INR' ? 'Amounts are entered in this currency. No live conversion is performed.' : undefined} />
